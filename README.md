@@ -52,13 +52,13 @@ Usage
                 <!-- optional, can be used when logging=file, default is utf-8 -->
 
                 <proxyHost>myproxy.company.com</proxyHost>
-                <!-- optional, default is none -->
+                <!-- optional, default is the active maven proxy see settings.xml -->
 
                 <proxyPort>8080</proxyPort>
                 <!-- optional, default is 80 -->
 
                 <proxyUser>joebloggs</proxyUser>
-                <!-- optional, default is none -->
+                <!-- optional, default is comming from the active maven proxy see settings.xml -->
 
                 <proxyPassword>pa55w0rd</proxyPassword>
                 <!-- optional, default is none -->
@@ -213,6 +213,6 @@ Notes
 * If you omit/forget the `stop` goal, any Mongo process spawned by the `start` goal will be stopped when the JVM terminates.
 * If you want to run Maven builds in parallel you can use `randomPort` to avoid port conflicts, the value allocated will be available to other plugins in the project as a property `embedmongo.port`.
   If you're using Jenkins, you can also try the [Port Allocator Plugin](https://wiki.jenkins-ci.org/display/JENKINS/Port+Allocator+Plugin).
-* If you need to use a proxy to download MongoDB then you can either use `-Dhttp.proxyHost` and `-Dhttp.proxyPort` as additional Maven arguments (this will affect the entire build) or instruct the plugin to use a proxy when downloading Mongo by adding the `proxyHost` and `proxyPort` configuration properties.
+* if proxy is not set then the maven active proxy defined in the settings.xml will be used or you instruct the plugin to use a different proxy when downloading Mongo by adding the `proxyHost` and `proxyPort` configuration properties.
 * If you're having trouble with Windows firewall rules, try setting the _bindIp_ config property to `127.0.0.1`.
 * If you'd like the start goal to start mongodb and wait, you can add `-Dmongodb.wait` to your Maven command line arguments
