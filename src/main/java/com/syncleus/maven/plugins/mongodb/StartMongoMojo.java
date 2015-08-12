@@ -45,6 +45,7 @@ import de.flapdoodle.embed.process.runtime.Network;
 import de.flapdoodle.embed.process.store.IArtifactStore;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
@@ -295,6 +296,10 @@ public class StartMongoMojo extends AbstractMongoMojo {
      */
     private Set<Feature> setFeatures = null;
 
+    @Parameter(defaultValue = "${session}")
+    private MavenSession mavenSession;
+
+
     public StartMongoMojo() {
     }
 
@@ -358,24 +363,60 @@ public class StartMongoMojo extends AbstractMongoMojo {
         this.initalizations = initalizations;
     }
 
+    private void setProxy() throws URISyntaxException {
+        final String selectedProxyHost;
+        final int selectedProxyPort;
+
+        if (this.proxyHost != null && this.proxyHost.length() > 0) {
+            selectedProxyHost = this.proxyHost;
+            selectedProxyPort = this.proxyPort;
+        } else if (mavenSession != null
+            && mavenSession.getSettings().getActiveProxy() != null
+            && mavenSession.getSettings().getActiveProxy().getHost() != null) {
+            selectedProxyHost = mavenSession.getSettings().getActiveProxy().getHost();
+            selectedProxyPort = mavenSession.getSettings().getActiveProxy().getPort();
+        } else {
+            selectedProxyHost = null;
+            selectedProxyPort = 0;
+        }
+
+        final String selectedProxyUser;
+        final String selectedProxyPassword;
+        if (this.proxyUser != null && this.proxyUser.length() > 0) {
+            selectedProxyUser = this.proxyUser;
+            selectedProxyPassword = this.proxyPassword;
+        } else if (mavenSession != null
+            && mavenSession.getSettings().getActiveProxy() != null
+            && mavenSession.getSettings().getActiveProxy().getHost() != null) {
+            selectedProxyUser = mavenSession.getSettings().getActiveProxy().getUsername();
+            selectedProxyPassword = mavenSession.getSettings().getActiveProxy().getPassword();
+        } else {
+            selectedProxyUser = null;
+            selectedProxyPassword = null;
+        }
+
+        getLog().info("Used proxy: {host: " + selectedProxyHost + ", port: " + selectedProxyPort +
+            ", user: " + selectedProxyUser + ", passwd: " + selectedProxyPassword);
+        addProxySelector(selectedProxyHost,
+            selectedProxyPort, selectedProxyUser, selectedProxyPassword, downloadPath);
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public void start() throws MojoExecutionException, MojoFailureException {
-
-        if (this.proxyHost != null && this.proxyHost.length() > 0) {
-            this.addProxySelector();
-        }
-
         final MongodExecutable executable;
+
         try {
+            setProxy();
+
             final IRuntimeConfig runtimeConfig = createRuntimeConfig();
 
             getPort();
 
             final IMongodConfig config = createMongodConfig();
-
-
             executable = MongodStarter.getInstance(runtimeConfig).prepare(config);
+        } catch (URISyntaxException e) {
+            throw new MojoExecutionException("Failed to initialize the downloader: ", e);
         } catch (final DistributionException e) {
             throw new MojoExecutionException("Failed to download MongoDB distribution: " + e.withDistribution(), e);
         }
@@ -539,7 +580,7 @@ public class StartMongoMojo extends AbstractMongoMojo {
             return Versions.withFeatures(determinedVersion, features);
     }
 
-    private void addProxySelector() {
+    private void addProxySelector(final String proxyHost, final int proxyPort, final String proxyUser, final String proxyPassword, final String downloadPath) throws URISyntaxException {
 
         // Add authenticator with proxyUser and proxyPassword
         if (proxyUser != null && proxyPassword != null) {
@@ -550,12 +591,15 @@ public class StartMongoMojo extends AbstractMongoMojo {
                 }
             });
         }
-
         final ProxySelector defaultProxySelector = ProxySelector.getDefault();
+
+
+        final URI downloadUri = new URI(downloadPath);
+
         ProxySelector.setDefault(new ProxySelector() {
             @Override
             public List<Proxy> select(final URI uri) {
-                if (uri.getHost().equals("fastdl.mongodb.org")) {
+                if (uri.getHost().equals(downloadUri.getHost()) && proxyHost != null && proxyHost.length() != 0) {
                     return singletonList(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort)));
                 } else {
                     return defaultProxySelector.select(uri);
